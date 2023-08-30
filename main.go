@@ -34,7 +34,13 @@ func main() {
   router.GET("/graphql", func (c *gin.Context) {
     // http://localhost:8080/graphql?query={todo(id:"a"){id, text}}
     result := executeQuery(c.Query("query"), schema.TodoSchema)
-    c.IndentedJSON(http.StatusOK, result)
+
+    if result.HasErrors() {
+      c.IndentedJSON(http.StatusBadRequest, result.Errors)
+    } else {
+    c.IndentedJSON(http.StatusOK, result) 
+    }
+
   })
 
   router.Run()
