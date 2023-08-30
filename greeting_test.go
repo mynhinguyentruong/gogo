@@ -8,4 +8,5 @@ func TestGreetingHello(t *testing.T) {
   if hello != "Hello" {
     t.Errorf("It did not greet Hello but %s instead", hello)
   }
+
 } 
