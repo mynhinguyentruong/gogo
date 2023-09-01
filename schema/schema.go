@@ -11,6 +11,15 @@ type Todo struct {
   ID string `json:"id"`
   Text string `json:"text"`
   Completed bool `json:"completed"` 
+  User_email string `json:"user_email,omitempty"` 
+}
+
+type User struct {
+  ID string 
+  Method string
+  Email string
+  Image_url string
+
 }
 
 type TodoList []Todo
@@ -20,9 +29,9 @@ var list TodoList = InitTodoList()
 func InitTodoList() TodoList {
   var list TodoList
 
-  todo1 := Todo{"a", "asdasdad", false}
-  todo2 := Todo{"b", "asdasdasdasdasd", false}
-  todo3 := Todo{"c", "Hahahahasdasds", false}
+  todo1 := Todo{"a", "asdasdad", false, "Hahahahasdasds@sgm.ca"}
+  todo2 := Todo{"b", "asdasdasdasdasd", false, "Hahahahasdasds@sgm.ca"}
+  todo3 := Todo{"c", "Hahahahasdasds", false, "Hahahahasdasds@sgm.ca"}
 
   list = append(list, todo1, todo2, todo3)
   fmt.Println("List: ", list)
@@ -41,6 +50,9 @@ var todoType = graphql.NewObject(graphql.ObjectConfig{
     },
     "completed": &graphql.Field{
       Type: graphql.Boolean,
+    },
+    "user_email": &graphql.Field{
+      Type: graphql.String,
     },
   },
 })
