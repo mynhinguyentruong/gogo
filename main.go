@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -30,6 +31,8 @@ func main() {
     list := schema.InitTodoList()
     c.IndentedJSON(http.StatusOK, list)
   })
+  
+  router.Use(TokenAuthMiddleware)
 
   router.GET("/graphql", func (c *gin.Context) {
     // http://localhost:8080/graphql?query={todo(id:"a"){id, text}}
@@ -43,7 +46,19 @@ func main() {
 
   })
 
-  router.Run()
+  if err := router.Run(":8080"); err != nil {
+    log.Fatalf("Couldnot run the server %v", err)
+  }
+}
+
+func TokenAuthMiddleware(c *gin.Context) {
+  token := c.Query("token")
+  
+  if token == "" {
+    c.AbortWithStatusJSON(http.StatusForbidden, "Unauthorize")
+  }
+
+  c.Next()
 }
 
 func Greeting(c *gin.Context) {
