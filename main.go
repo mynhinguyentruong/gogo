@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,10 +11,35 @@ import (
 	"net/url"
 	"os"
 
+	"crypto/sha256"
+
 	"github.com/gin-gonic/gin"
 	"github.com/graphql-go/graphql"
 	"github.com/mynhinguyentruong/gogo/schema"
+  "golang.org/x/crypto/bcrypt"
 )
+
+func encryptTokenToBase64String(access_token string) string {
+  hash := sha256.New() 
+  hash.Write([]byte(access_token))
+
+  bs := hash.Sum(nil)
+  hashedToken, err := bcrypt.GenerateFromPassword(bs, bcrypt.DefaultCost)
+  if err != nil {
+    panic(err)
+  }
+
+  strEncoded := base64.StdEncoding.EncodeToString(hashedToken)
+ 
+  return strEncoded 
+  // Next: save this to a DB with key access_token
+}
+
+func verifyAccessToken(str1, str2 string) bool {
+  err := bcrypt.CompareHashAndPassword([]byte(str1), []byte(str2)) 
+  
+  return err == nil
+}
 
 func executeQuery(query string, schema graphql.Schema) *graphql.Result {
   result := graphql.Do(graphql.Params{
@@ -35,12 +61,23 @@ type GithubAccessTokenResponse struct{
 }
 
 func main() {
+  port := os.Getenv("PORT")
+  if port == "" {
+    log.Println("Cannot find PORT env, default to run on port 8080 instead")
+    port = "8080"
+  }
   router := gin.Default()
   
   router.Use(ExperimentalMiddleware)
   router.Use(CORSMiddleware())
 
   router.SetTrustedProxies([]string{"127.0.0.69"})
+
+  router.GET("/test", func (c *gin.Context) {
+    val := encryptTokenToBase64String("123")
+    fmt.Println("Val: ", val)
+    c.IndentedJSON(http.StatusOK, val)
+  })
 
   router.GET("/greet", Greeting)
   router.GET("/list", func (c *gin.Context) {
@@ -69,6 +106,7 @@ func main() {
       }
 
       data, err := io.ReadAll(resp.Body)
+      defer resp.Body.Close()
       if err != nil {
         c.AbortWithStatusJSON(500, err)
       }
@@ -111,7 +149,7 @@ func main() {
 
   })
 
-  if err := router.Run(":8080"); err != nil {
+  if err := router.Run(":"+port); err != nil {
     log.Fatalf("Couldnot run the server %v", err)
   }
 }
