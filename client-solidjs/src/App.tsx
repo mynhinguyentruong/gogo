@@ -12,6 +12,7 @@ const App: Component = () => {
           Edit <code>src/App.tsx</code> and save to reload.
         </p>
         <p>HIIIII SOLID</p>
+        <a href="https://github.com/login/oauth/authorize?client_id=ffe7776b7ca3b5629066">Login with Github </a>
         <a
           class={styles.link}
           href="https://github.com/solidjs/solid"
