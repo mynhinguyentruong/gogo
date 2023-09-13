@@ -16,7 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/graphql-go/graphql"
 	"github.com/mynhinguyentruong/gogo/schema"
-  "golang.org/x/crypto/bcrypt"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func encryptTokenToBase64String(access_token string) string {
@@ -33,6 +33,36 @@ func encryptTokenToBase64String(access_token string) string {
  
   return strEncoded 
   // Next: save this to a DB with key access_token
+}
+
+func getGithubUser(access_token string) map[string]interface{} {
+  client := &http.Client{}
+  req, err := http.NewRequest("GET", "https://api.github.com/user", nil)
+  if err != nil {
+    log.Fatalf("Error when create new request: %v", req)
+  }
+
+  req.Header.Add("Authorization", "Bearer " + access_token)
+
+  resp, err := client.Do(req)
+  if err != nil {
+    log.Fatalf("Error when sending Get User request to github: %v", err)
+  }
+
+  var data map[string]interface{}
+  dataBytes, err := io.ReadAll(resp.Body)
+  if err != nil {
+    fmt.Println("Error while reading response body to bytes", err)
+  }
+  resp.Body.Close()
+  err = json.Unmarshal(dataBytes, &data)
+  if err != nil {
+    fmt.Println("Error while Unmarshal JSON to map: ", err)
+  }
+
+  log.Printf("Github user: %v", data)
+
+  return data
 }
 
 func verifyAccessToken(str1, str2 string) bool {
@@ -98,25 +128,53 @@ func main() {
       params.Add("client_secret", os.Getenv("github_clientsecret"))
       params.Add("code", code)
 
-      url := "https://github.com/login/oauth/access_token?"
+      if os.Getenv("github_clientsecret") == "" || os.Getenv("github_clientid") == "" {
+        log.Fatalf("Provide github env\n github_clientid: %v \n github_clientsecret: %v", os.Getenv("github_clientid"), os.Getenv("github_clientsecret"))
+      }
 
-      resp, err := http.Post(url + params.Encode(), "application/json", nil)
+      gitURL := "https://github.com/login/oauth/access_token?" + params.Encode()
+
+      resp, err := http.Get(gitURL)
       if err != nil {
-        c.AbortWithStatusJSON(500, err)
+        log.Fatalf("error in get req: %v", err)
+        // c.AbortWithStatusJSON(500, err)
+        return
       }
 
       data, err := io.ReadAll(resp.Body)
-      defer resp.Body.Close()
+      resp.Body.Close()
       if err != nil {
-        c.AbortWithStatusJSON(500, err)
+        log.Fatal("Error in reading data: ", err)
+        return
       }
 
-      var access_token_response GithubAccessTokenResponse
+      fmt.Println("Data: ", data)
+      fmt.Println("Data: ", data)
+      fmt.Println("Data: ", data)
 
-      err = json.Unmarshal(data, &access_token_response)
-      if err != nil {
-        c.AbortWithStatusJSON(500, err)
-      }
+      fmt.Println("Haha: ", string(data))
+      fmt.Println("Haha: ", string(data))
+      fmt.Println("Haha: ", string(data))
+
+      access_token_response := string(data) 
+      
+      m, _ := url.ParseQuery(access_token_response)
+      // type Values map[string][]string
+
+      fmt.Println("m: ", m)
+      fmt.Println("m: ", m)
+      fmt.Println("m: ", m)
+      //
+      // //
+      // // fmt.Println("Response: ", access_token_response)
+      // // fmt.Println("Response: ", access_token_response)
+      // // fmt.Println("Response: ", access_token_response)
+
+      fmt.Println("Access token: ", m["access_token"])
+      // fmt.Println("Access token: ", access_token_response.AccessToken)
+      // fmt.Println("Access token: ", access_token_response.AccessToken)
+
+      getGithubUser(m["access_token"][0])
 
       // Set Cookie to access_token_response
       // key: backend_auth.session_token
@@ -125,9 +183,10 @@ func main() {
       // Hash
       // Salt
       // Save to db
-      c.SetCookie("backend_auth.session", access_token_response.AccessToken, 3600, "/", "localhost", true, true)
+      c.SetCookie("backend_auth.session", m["access_token"][0], 3600, "/", "localhost", true, true)
+      c.SetSameSite(http.SameSiteLaxMode)
 
-      c.IndentedJSON(http.StatusOK, code)
+      c.IndentedJSON(http.StatusOK, m["access_token"][0])
     }
 
     if method == "" {
