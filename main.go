@@ -17,6 +17,12 @@ import (
 	"github.com/graphql-go/graphql"
 	"github.com/mynhinguyentruong/gogo/schema"
 	"golang.org/x/crypto/bcrypt"
+  "github.com/gomodule/redigo/redis"
+)
+
+var (
+  errNoGithubClientID = errors.New("no github_clientid found. Please set the required environment variable, example 'ECHO github_clientid=[value]'")
+  errNoGithubClientSecret = errors.New("no github_clientsecret found. Please set the required environment variable, example 'ECHO github_clientsecret=[value]'")
 )
 
 func encryptTokenToBase64String(access_token string) string {
@@ -92,6 +98,17 @@ type GithubAccessTokenResponse struct{
 
 func main() {
   port := os.Getenv("PORT")
+
+  clientid := os.Getenv("github_clientid") 
+  secret := os.Getenv("github_clientsecret")
+
+  if clientid == "" {
+    log.Fatal(errNoGithubClientID)
+  }
+
+  if secret == "" {
+    log.Fatal(errNoGithubClientSecret)
+  }
   if port == "" {
     log.Println("Cannot find PORT env, default to run on port 8080 instead")
     port = "8080"
@@ -114,6 +131,15 @@ func main() {
     list := schema.InitTodoList()
     c.IndentedJSON(http.StatusOK, list)
   })
+
+  router.GET("/api/visitor", func (c *gin.Context) {
+    // increment the number of time visitor has visited this website
+    // format will be key is visitorId, value is an array which is timestamp of last visited
+    // rate limit this as the user cannot access it over 3 timestamp
+
+    // Pay $1 for cover letter generating
+  })
+
   router.GET("/api/auth/callback", func (c *gin.Context) {
     method := c.Query("method")
 
@@ -164,15 +190,8 @@ func main() {
       fmt.Println("m: ", m)
       fmt.Println("m: ", m)
       fmt.Println("m: ", m)
-      //
-      // //
-      // // fmt.Println("Response: ", access_token_response)
-      // // fmt.Println("Response: ", access_token_response)
-      // // fmt.Println("Response: ", access_token_response)
 
       fmt.Println("Access token: ", m["access_token"])
-      // fmt.Println("Access token: ", access_token_response.AccessToken)
-      // fmt.Println("Access token: ", access_token_response.AccessToken)
 
       getGithubUser(m["access_token"][0])
 
@@ -253,4 +272,18 @@ func CORSMiddleware() gin.HandlerFunc {
 
       c.Next()
     }
+}
+
+func connect() {
+  url := os.Getenv("FLY_REDIS_URL")
+  if url == "" {
+    log.Fatal("cannot find redis url env")
+  }
+
+  c, err := redis.Dial("tcp", url + ":6379")
+  if err != nil {
+      panic(err)
+  }
+
+  fmt.Println("connect: ", c)
 }
