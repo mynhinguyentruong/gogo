@@ -7,12 +7,25 @@ import (
 	"log"
 	"net/http"
 	"os"
+  "database/sql"
+  _ "github.com/go-sql-driver/mysql"
+
 
 	"github.com/gin-gonic/gin"
-	"github.com/stripe/stripe-go/v72/webhook"
 	stripe "github.com/stripe/stripe-go/v72"
+	"github.com/stripe/stripe-go/v72/webhook"
 	// "github.com/stripe/stripe-go/v76/checkout/session"
 )
+var db *sql.DB
+
+
+type User struct {
+  ID int64 
+  Name string
+  Email string
+  Credit int64 
+  ClientReferenceID string
+}
 
 
 func handleWebhookRoute (c *gin.Context) {
@@ -33,7 +46,9 @@ func handleWebhookRoute (c *gin.Context) {
   endpointSecret:= os.Getenv("endpointSecret")
 
   if endpointSecret == "" {
-      log.Fatal("set env endpointSecret")
+    fmt.Errorf("set env endpointSecret")
+    c.AbortWithStatus(http.StatusServiceUnavailable)
+    return
   }
 
   event, err := webhook.ConstructEvent(body, c.Request.Header.Get("Stripe-Signature"), endpointSecret)
@@ -55,14 +70,19 @@ func handleWebhookRoute (c *gin.Context) {
       return
     }
 
-    if customer_id := session.ClientReferenceID; customer_id == "" {
-      fmt.Errorf("empty client_reference_id")
-      c.AbortWithStatusJSON(http.StatusBadRequest, "empty client_reference_id")
-      return
-    } else {
-      fmt.Println("client_reference_id: ", customer_id)
+    if session.PaymentStatus == "paid" {
+      if session.ClientReferenceID == "" {
+        // can try to look up customer email provided in DB
+        fmt.Errorf("empty client_reference_id")
+        c.AbortWithStatusJSON(http.StatusBadRequest, "empty client_reference_id")
+        return
+      }
+
+      fmt.Println("client_reference_id: ", session.ClientReferenceID)
       fmt.Println("the whole event look like this: ", session)
-          FulfillOrder(customer_id)
+      FulfillOrder(session.ClientReferenceID, session.AmountTotal)
+    }
+
     } 
 
     // params := &stripe.CheckoutSessionParams{}
@@ -72,6 +92,7 @@ func handleWebhookRoute (c *gin.Context) {
     // sessionWithLineItems, _ := session.Get(session.ID, params)
     // lineItems := sessionWithLineItems.LineItems
     // Fulfill the purchase...
+  c.IndentedJSON(http.StatusOK, event)
 
   }
   // on checkout.session.completed
@@ -79,12 +100,55 @@ func handleWebhookRoute (c *gin.Context) {
   // update the credit in database
   // based on product id
 
-  fmt.Println("event: ", event)
 
-  c.IndentedJSON(http.StatusOK, event)
+
+  
+
+
+func FulfillOrder(customer_id string, amount_total int64) {
+ fmt.Println("increase their credit here: ", customer_id)
+  var credit int64
+
+  if amount_total >= 5400 {
+    credit = amount_total / 450
+  } else {
+    credit = amount_total / 900
+  }
+  
+  // db lookup id or email
+
+  // increase credit
+
+  	// Open a connection to the database
+  var err error
+	db, err = sql.Open("mysql", os.Getenv("DSN"))
+	if err != nil {
+		log.Fatal("failed to open db connection", err)
+	}
+
+  UpdateCredit(customer_id, credit)
   
 }
 
-func FulfillOrder(customer_id string) {
- fmt.Println("increase their credit here: ", customer_id)
+func UpdateCredit(customer_id string, credit_amount int64) {
+  credit := GetCurrentCredit(customer_id)
+  credit = credit + credit_amount * 100
+  
+	query := `UPDATE users SET credit = ? WHERE client_reference_id = ?`
+  _, err := db.Exec(query, credit, customer_id)
+	if err != nil {
+		log.Fatal("(UpdateProduct) db.Exec", err)
+	}
+}
+
+func GetCurrentCredit(customer_id string) int64 {
+  var user User
+
+  query := `SELECT * FROM users WHERE client_reference_id = ?`
+  err := db.QueryRow(query, customer_id).Scan(&user.ID, &user.Name, &user.Email, &user.Credit, &user.ClientReferenceID)
+	if err != nil {
+		log.Fatal("(GetSingleProduct) db.Exec", err)
+	}
+
+  return user.Credit
 }

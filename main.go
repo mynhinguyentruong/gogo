@@ -18,6 +18,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
   "github.com/gomodule/redigo/redis"
   // "github.com/stripe/stripe-go/v72/webhook"
+  "github.com/joho/godotenv"
+
 
 )
 
@@ -67,6 +69,11 @@ func executeQuery(query string, schema graphql.Schema) *graphql.Result {
   
 
 func main() {
+  err := godotenv.Load()
+	if err != nil {
+		log.Fatal("failed to load env", err)
+	}
+
   port := os.Getenv("PORT")
 
   // clientid := os.Getenv("github_clientid") 
