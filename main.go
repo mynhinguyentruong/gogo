@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -18,6 +17,8 @@ import (
 	"github.com/mynhinguyentruong/gogo/schema"
 	"golang.org/x/crypto/bcrypt"
   "github.com/gomodule/redigo/redis"
+  // "github.com/stripe/stripe-go/v72/webhook"
+
 )
 
 var (
@@ -39,37 +40,10 @@ func encryptTokenToBase64String(access_token string) string {
  
   return strEncoded 
   // Next: save this to a DB with key access_token
+  // Why I save a hash version in DB
+  // Because just imagine if I have other to work on this. I don't want them to go into DB just copy and pretend to be this user
 }
 
-func getGithubUser(access_token string) map[string]interface{} {
-  client := &http.Client{}
-  req, err := http.NewRequest("GET", "https://api.github.com/user", nil)
-  if err != nil {
-    log.Fatalf("Error when create new request: %v", req)
-  }
-
-  req.Header.Add("Authorization", "Bearer " + access_token)
-
-  resp, err := client.Do(req)
-  if err != nil {
-    log.Fatalf("Error when sending Get User request to github: %v", err)
-  }
-
-  var data map[string]interface{}
-  dataBytes, err := io.ReadAll(resp.Body)
-  if err != nil {
-    fmt.Println("Error while reading response body to bytes", err)
-  }
-  resp.Body.Close()
-  err = json.Unmarshal(dataBytes, &data)
-  if err != nil {
-    fmt.Println("Error while Unmarshal JSON to map: ", err)
-  }
-
-  log.Printf("Github user: %v", data)
-
-  return data
-}
 
 func verifyAccessToken(str1, str2 string) bool {
   err := bcrypt.CompareHashAndPassword([]byte(str1), []byte(str2)) 
@@ -90,34 +64,31 @@ func executeQuery(query string, schema graphql.Schema) *graphql.Result {
   return result
 } 
 
-type GithubAccessTokenResponse struct{
-  AccessToken string `json:"access_token"`
-  Scope string `json:"scope"`
-  TokenType string `json:"token_type"` 
-}
+  
 
 func main() {
   port := os.Getenv("PORT")
 
-  clientid := os.Getenv("github_clientid") 
-  secret := os.Getenv("github_clientsecret")
+  // clientid := os.Getenv("github_clientid") 
+  // secret := os.Getenv("github_clientsecret")
 
-  if clientid == "" {
-    log.Fatal(errNoGithubClientID)
-  }
-
-  if secret == "" {
-    log.Fatal(errNoGithubClientSecret)
-  }
+  // if clientid == "" {
+  //   log.Fatal(errNoGithubClientID)
+  // }
+  //
+  // if secret == "" {
+  //   log.Fatal(errNoGithubClientSecret)
+  // }
   if port == "" {
     log.Println("Cannot find PORT env, default to run on port 8080 instead")
     port = "8080"
   }
   router := gin.Default()
-  
+
+  router.POST("/webhook", handleWebhookRoute)  
   router.Use(ExperimentalMiddleware)
   router.Use(CORSMiddleware())
-
+  //
   router.SetTrustedProxies([]string{"127.0.0.69"})
 
   router.GET("/test", func (c *gin.Context) {
@@ -131,6 +102,9 @@ func main() {
     list := schema.InitTodoList()
     c.IndentedJSON(http.StatusOK, list)
   })
+
+  // stripeKey := os.Getenv("STRIPE_SECREKEY")
+
 
   router.GET("/api/visitor", func (c *gin.Context) {
     // increment the number of time visitor has visited this website

@@ -1,0 +1,4 @@
+# flyctl launch added from client-solidjs/.gitignore
+client-solidjs/**/node_modules
+client-solidjs/**/dist
+fly.toml
